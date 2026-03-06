@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""
+Duplicate File Finder
+Finds duplicate files in a directory by comparing their content.
+"""
+
+import os
+import hashlib
+from pathlib import Path
+from collections import defaultdict
+
+
+def get_file_hash(filepath):
+    """Generate MD5 hash of a file."""
+    hasher = hashlib.md5()
+    with open(filepath, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def find_duplicates(directory):
+    """Find duplicate files in directory."""
+    hash_map = defaultdict(list)
+    
+    dir_path = Path(directory)
+    
+    if not dir_path.exists():
+        print(f"Error: Directory '{directory}' does not exist.")
+        return {}
+    
+    print(f"Scanning: {directory}\n")
+    
+    for item in dir_path.rglob('*'):
+        if item.is_file():
+            try:
+                file_hash = get_file_hash(item)
+                hash_map[file_hash].append(str(item))
+            except (PermissionError, OSError) as e:
+                print(f"Skipped: {item} ({e})")
+    
+    # Filter only duplicates (more than one file with same hash)
+    duplicates = {h: files for h, files in hash_map.items() if len(files) > 1}
+    
+    return duplicates
+
+
+def main():
+    print("=== Duplicate File Finder ===\n")
+    
+    directory = input("Directory to scan (Enter for current): ").strip()
+    
+    if not directory:
+        directory = os.getcwd()
+    
+    duplicates = find_duplicates(directory)
+    
+    if not duplicates:
+        print("No duplicates found.")
+        return
+    
+    print(f"\nFound {len(duplicates)} sets of duplicates:\n")
+    
+    total_wasted = 0
+    
+    for i, (file_hash, files) in enumerate(duplicates.items(), 1):
+        size = os.path.getsize(files[0])
+        wasted = size * (len(files) - 1)
+        total_wasted += wasted
+        
+        print(f"Set {i} ({len(files)} files, {size:,} bytes each):")
+        for f in files:
+            print(f"  - {f}")
+        print()
+    
+    print(f"Total space wasted by duplicates: {total_wasted:,} bytes ({total_wasted // 1024 // 1024} MB)")
+
+
+if __name__ == "__main__":
+    main()
